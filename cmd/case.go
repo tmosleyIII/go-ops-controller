@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -13,8 +14,8 @@ import (
 var (
 	caseInfo     = regexp.MustCompile(`^X([A-Z])([0-9]{2})([0-9]{1,7})`)
 	origCaseType string
-	caseYear     string
-	seqNumber    string
+	caseYear     int
+	seqNumber    int
 )
 
 type NullTime struct {
@@ -90,7 +91,6 @@ func handleError(w http.ResponseWriter, code int) {
 
 // CaseShow Return case information for one case
 func CaseShow(w http.ResponseWriter, r *http.Request) {
-	cases := &Case{}
 	prettyPrint := getPrettyPrintValue(r)
 	accNumber := strings.ToUpper(getAccNumVar(r))
 	if accNumber == "" {
@@ -98,16 +98,9 @@ func CaseShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	caseResults := caseInfo.FindStringSubmatch(accNumber)
-	origCaseType = caseResults[1]
-	caseYear = "20" + caseResults[2]
-	seqNumber = caseResults[3]
+	origCaseType, caseYear, seqNumber = FindCaseSubstrings(accNumber)
 
-	stmt, err := db.Prepare("SELECT * FROM public.case WHERE seq_number = $1 AND case_type_id = $2 AND year = $3")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = stmt.QueryRow(seqNumber, origCaseType, caseYear).Scan(&cases.ID, &cases.Barcode, &cases.Biopsy_date, &cases.Diagnosed_at, &cases.Payment_method, &cases.Previous_case_number, &cases.Special_billing_request, &cases.Validated_at, &cases.Aetna_case, &cases.Clearpath, &cases.Digital, &cases.Digital_field_locked, &cases.Orders_processing, &cases.Rush, &cases.Seq_number, &cases.Status, &cases.Year, &cases.Created_at, &cases.Updated_at, &cases.Deleted_at, &cases.Case_type_id, &cases.Contributor_id, &cases.Lab_location_id, &cases.Location_id, &cases.Patient_id, &cases.Previous_case_id, &cases.Shipping_tracking_number, &cases.Order_number, &cases.Consult_created_at, &cases.Slide_prep_ready, &cases.Consult_pending, &cases.Shipped_at, &cases.Scope_status, &cases.Second_step_complete, &cases.Sent_iguana, &cases.Scope_reviewed, &cases.Scope_tag, &cases.Signed_out_at, &cases.Billing_completed_at, &cases.Signed_out_by_id, &cases.Previous_checked, &cases.Read_wsi, &cases.Physician_assistant)
+	cases, err := GetCase(seqNumber, origCaseType, caseYear)
 	switch {
 	case err == sql.ErrNoRows:
 		handleError(w, 404)
@@ -124,4 +117,36 @@ func CaseShow(w http.ResponseWriter, r *http.Request) {
 
 // CaseDelete Delete specified case
 func CaseDelete(w http.ResponseWriter, r *http.Request) {
+}
+
+func FindCaseSubstrings(accNumber string) (string, int, int) {
+	results := caseInfo.FindStringSubmatch(accNumber)
+	cType := results[1]
+	cYear := "20" + results[2]
+	sNum := results[3]
+	d, err := strconv.Atoi(cYear)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	s, err := strconv.Atoi(sNum)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return cType, d, s
+}
+
+func GetCase(seq int, ctype string, cyear int) (*Case, error) {
+
+	cases := &Case{}
+	stmt, err := db.Prepare("SELECT * FROM public.case WHERE seq_number = $1 AND case_type_id = $2 AND year = $3")
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = stmt.QueryRow(seq, ctype, cyear).Scan(&cases.ID, &cases.Barcode, &cases.Biopsy_date, &cases.Diagnosed_at, &cases.Payment_method, &cases.Previous_case_number, &cases.Special_billing_request, &cases.Validated_at, &cases.Aetna_case, &cases.Clearpath, &cases.Digital, &cases.Digital_field_locked, &cases.Orders_processing, &cases.Rush, &cases.Seq_number, &cases.Status, &cases.Year, &cases.Created_at, &cases.Updated_at, &cases.Deleted_at, &cases.Case_type_id, &cases.Contributor_id, &cases.Lab_location_id, &cases.Location_id, &cases.Patient_id, &cases.Previous_case_id, &cases.Shipping_tracking_number, &cases.Order_number, &cases.Consult_created_at, &cases.Slide_prep_ready, &cases.Consult_pending, &cases.Shipped_at, &cases.Scope_status, &cases.Second_step_complete, &cases.Sent_iguana, &cases.Scope_reviewed, &cases.Scope_tag, &cases.Signed_out_at, &cases.Billing_completed_at, &cases.Signed_out_by_id, &cases.Previous_checked, &cases.Read_wsi, &cases.Physician_assistant)
+	if err == sql.ErrNoRows {
+		return nil, err
+	}
+
+	return cases, err
 }

@@ -46,14 +46,13 @@ to quickly create a Cobra application.`,
 			accNum       string
 			origCaseType string
 			caseType     string
-			casePKey     string
-			caseYear     string
-			seqNumber    string
-			seq_number   string
-			case_type_id string
-			year         string
+			casePKey     int
+			caseYear     int
+			seqNumber    int
+			seq_number   *int64
+			case_type_id *string
+			year         *int64
 			IsLetter     = regexp.MustCompile(`^[a-zA-Z]+$`).MatchString
-			caseInfo     = regexp.MustCompile(`^X([A-Z])([0-9]{2})([0-9]{1,7})`)
 		)
 
 		if flags := len(args); flags < 2 {
@@ -70,30 +69,31 @@ to quickly create a Cobra application.`,
 
 		accNum = strings.ToUpper(args[0])
 
-		caseResults := caseInfo.FindStringSubmatch(accNum)
-		origCaseType = caseResults[1]
-		caseYear = "20" + caseResults[2]
-		seqNumber = caseResults[3]
-		fmt.Printf("%s %s %s %s %s\n", accNum, caseType, caseYear, origCaseType, seqNumber)
 		timestamp := time.Now().Format(time.RFC3339Nano)
 
-		stmt, err := db.Prepare("SELECT seq_number, case_type_id, year, id FROM public.case WHERE seq_number = $1 AND case_type_id = $2 AND year = $3")
+		origCaseType, caseYear, seqNumber = FindCaseSubstrings(accNum)
+
+		fmt.Printf("%s %s %d %s %d\n", accNum, caseType, caseYear, origCaseType, seqNumber)
+
+		cases, err := GetCase(seqNumber, origCaseType, caseYear)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		err = stmt.QueryRow(seqNumber, origCaseType, caseYear).Scan(&seq_number, &case_type_id, &year, &casePKey)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("This is a %s case from the year %s, accNum: %s pkey: %s\n", case_type_id, year, seq_number, casePKey)
+		casePKey = cases.ID
+		seq_number = cases.Seq_number
+		case_type_id = cases.Case_type_id
+		year = cases.Year
+		fmt.Println(*case_type_id, *year, *seq_number, casePKey)
 
 		stmt2, err := db.Prepare("UPDATE public.case set case_type_id=$1 WHERE seq_number = $2 AND case_type_id = $3 AND year = $4")
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer stmt2.Close()
+		newCaseType := *cases.Case_type_id
 
-		caseTypeMatch := strings.Compare(origCaseType, case_type_id)
+		caseTypeMatch := strings.Compare(origCaseType, newCaseType)
 
 		if caseTypeMatch == 0 {
 			result, err := stmt2.Exec(caseType, seqNumber, origCaseType, caseYear)
@@ -110,7 +110,7 @@ to quickly create a Cobra application.`,
 			INSERT INTO case_note (item_id, note, created_at, application_id, case_id,
 			content_type_id, user_id, show_on_report)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-			_, err = db.Exec(insertStmt, casePKey, "Changed case type to "+caseType, timestamp, 15, casePKey, 43, 1, false)
+			_, err = db.Exec(insertStmt, casePKey, "Changed case type to "+caseType, timestamp, 15, casePKey, 43, 14, false)
 			if err != nil {
 				log.Fatal(err)
 			}

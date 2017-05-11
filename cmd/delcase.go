@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -46,12 +45,10 @@ to quickly create a Cobra application.`,
 		var (
 			accNum       string
 			origCaseType string
-			caseYear     string
-			seqNumber    string
-			casePKey     string
-			caseInfo     = regexp.MustCompile(`^X([A-Z])([0-9]{2})([0-9]{1,7})`)
+			caseYear     int
+			seqNumber    int
+			casePKey     int
 		)
-		fmt.Println("delcase called")
 
 		if flags := len(args); flags < 1 {
 			fmt.Println("usage: delcase <accNum>")
@@ -59,23 +56,15 @@ to quickly create a Cobra application.`,
 		}
 
 		accNum = strings.ToUpper(args[0])
-
-		caseResults := caseInfo.FindStringSubmatch(accNum)
-		origCaseType = caseResults[1]
-		caseYear = "20" + caseResults[2]
-		seqNumber = caseResults[3]
-		fmt.Printf("%s %s %s %s\n", accNum, caseYear, origCaseType, seqNumber)
 		timestamp := time.Now().Format(time.RFC3339Nano)
 
-		stmt1, err := db.Prepare("SELECT id FROM public.case WHERE seq_number = $1 AND case_type_id = $2 AND year = $3")
+		origCaseType, caseYear, seqNumber = FindCaseSubstrings(accNum)
+		cases, err := GetCase(seqNumber, origCaseType, caseYear)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		err = stmt1.QueryRow(seqNumber, origCaseType, caseYear).Scan(&casePKey)
-		if err != nil {
-			log.Fatal(err)
-		}
+		casePKey = cases.ID
 
 		updateStmt := `
 		UPDATE public.case set status=98, deleted_at=$1 WHERE seq_number = $2 AND case_type_id = $3 AND year = $4 AND deleted_at IS NULL`
