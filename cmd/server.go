@@ -50,11 +50,14 @@ to quickly create a Cobra application.`,
 		router := NewRouter()
 
 		log.Println("Starting Ops server...")
-		errChan := make(chan error, 10)
+		errChan := make(chan error, 1)
 
 		httpServer := &http.Server{Addr: httpAddr, Handler: router}
 		go func() {
-			errChan <- httpServer.ListenAndServe()
+			err := httpServer.ListenAndServe()
+			if err != nil && err != http.ErrServerClosed {	
+				errChan <- err
+			}
 		}()
 
 		signalChan := make(chan os.Signal, 1)
@@ -68,6 +71,12 @@ to quickly create a Cobra application.`,
 				}
 			case s := <-signalChan:
 				log.Println(fmt.Sprintf("Captured %v. Exiting...", s))
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := httpServer.Shutdown(shutdownCtx); err != nil {
+					log.Fatalf("Server Shutdown Failed: %v", err)
+				}
+				log.Println("Server gracefully stopped")
 				os.Exit(0)
 			}
 		}
