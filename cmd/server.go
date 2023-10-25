@@ -21,12 +21,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -55,7 +57,7 @@ to quickly create a Cobra application.`,
 		httpServer := &http.Server{Addr: httpAddr, Handler: router}
 		go func() {
 			err := httpServer.ListenAndServe()
-			if err != nil && err != http.ErrServerClosed {	
+			if err != nil && err != http.ErrServerClosed {
 				errChan <- err
 			}
 		}()
