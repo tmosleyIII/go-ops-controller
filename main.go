@@ -14,7 +14,7 @@
 
 package main
 
-import "github.com/tmosleyiii/go-ops-controller/cmd"
+import "github.com/tmosleyIII/go-ops-controller/cmd"
 
 func main() {
 	cmd.Execute()
